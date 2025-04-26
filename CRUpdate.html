@@ -1,0 +1,108 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      background: linear-gradient(to right, #ffebee, #e1f5fe);
+      padding: 20px;
+      margin: 0;
+    }
+    .container {
+      background: white;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      max-width: 500px;
+      margin: auto;
+    }
+    h3 {
+      text-align: center;
+      color: #1565c0;
+    }
+    input, select, button {
+      margin: 8px 0;
+      width: 100%;
+      padding: 10px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+    }
+    button {
+      background-color: #1565c0;
+      color: white;
+      font-weight: bold;
+      border: none;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    button:hover {
+      background-color: #0d47a1;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h3>Update Existing CR</h3>
+
+    <label>Select CR:</label>
+    <select id="crList"></select>
+
+    <label>Actual Start Date & Time:</label>
+    <input type="datetime-local" id="actualStartDateTime">
+
+    <label>Actual End Date & Time:</label>
+    <input type="datetime-local" id="actualEndDateTime">
+
+    <label>Status:</label>
+    <select id="status"></select>
+
+    <button onclick="submitUpdate()">Update CR</button>
+  </div>
+
+  <script>
+    google.script.run.withSuccessHandler(function(crs) {
+      const crSelect = document.getElementById("crList");
+      crs.forEach(row => {
+        const option = document.createElement("option");
+        option.value = row.row;
+        option.text = row.crNumber;
+        crSelect.add(option);
+      });
+    }).getUnclosedCRs();
+
+    google.script.run.withSuccessHandler(function(data) {
+      const statusSelect = document.getElementById("status");
+      data.statusOptions.forEach(status => {
+        const option = document.createElement("option");
+        option.value = status;
+        option.text = status;
+        statusSelect.add(option);
+      });
+    }).getDropdownData();
+
+    function submitUpdate() {
+      const updateData = {
+        row: document.getElementById("crList").value,
+        actualStartDateTime: document.getElementById("actualStartDateTime").value,
+        actualEndDateTime: document.getElementById("actualEndDateTime").value,
+        status: document.getElementById("status").value,
+      };
+
+      if (!updateData.row || !updateData.actualStartDateTime || !updateData.actualEndDateTime || !updateData.status) {
+        alert("Please fill all fields.");
+        return;
+      }
+
+      google.script.run
+        .withSuccessHandler(() => {
+          alert("CR updated successfully!");
+          google.script.host.close();
+        })
+        .updateCR(updateData);
+    }
+  </script>
+</body>
+</html>

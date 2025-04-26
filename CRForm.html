@@ -1,0 +1,121 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      background: linear-gradient(to right, #e0f7fa, #e1bee7);
+      padding: 20px;
+      margin: 0;
+    }
+    .container {
+      background: white;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      max-width: 500px;
+      margin: auto;
+    }
+    h3 {
+      text-align: center;
+      color: #4a148c;
+    }
+    input, select, button {
+      margin: 8px 0;
+      width: 100%;
+      padding: 10px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+    }
+    button {
+      background-color: #4a148c;
+      color: white;
+      font-weight: bold;
+      border: none;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    button:hover {
+      background-color: #6a1b9a;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h3>Add New CR</h3>
+
+    <label>CR/Incident:</label>
+    <input type="text" id="crIncident">
+
+    <label>Reason:</label>
+    <input type="text" id="reason">
+
+    <label>Raised by:</label>
+    <select id="raisedBy"></select>
+
+    <label>Assigned to:</label>
+    <select id="assignedTo"></select>
+
+    <label>Approver:</label>
+    <select id="approver"></select>
+
+    <label>Implementer:</label>
+    <select id="implementer"></select>
+
+    <label>Validator:</label>
+    <select id="validator"></select>
+
+    <label>Start Date & Time:</label>
+    <input type="datetime-local" id="startDateTime">
+
+    <label>End Date & Time:</label>
+    <input type="datetime-local" id="endDateTime">
+
+    <button onclick="submitForm()">Submit CR</button>
+  </div>
+
+  <script>
+    google.script.run.withSuccessHandler(function(data) {
+      const members = data.teamMembers;
+      ["raisedBy", "assignedTo", "approver", "implementer", "validator"].forEach(id => {
+        const select = document.getElementById(id);
+        members.forEach(name => {
+          const option = document.createElement("option");
+          option.value = name;
+          option.text = name;
+          select.add(option);
+        });
+      });
+    }).getDropdownData();
+
+    function submitForm() {
+      const formData = {
+        crIncident: document.getElementById("crIncident").value,
+        reason: document.getElementById("reason").value,
+        raisedBy: document.getElementById("raisedBy").value,
+        assignedTo: document.getElementById("assignedTo").value,
+        approver: document.getElementById("approver").value,
+        implementer: document.getElementById("implementer").value,
+        validator: document.getElementById("validator").value,
+        startDateTime: document.getElementById("startDateTime").value,
+        endDateTime: document.getElementById("endDateTime").value,
+      };
+
+      if (!formData.crIncident || !formData.startDateTime || !formData.endDateTime) {
+        alert("Please fill all mandatory fields.");
+        return;
+      }
+
+      google.script.run
+        .withSuccessHandler(() => {
+          alert("CR added successfully!");
+          google.script.host.close();
+        })
+        .addCR(formData);
+    }
+  </script>
+</body>
+</html>
