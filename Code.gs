@@ -2,19 +2,19 @@
 const teamMembers = ["Jayanth", "Sudeshna", "Binit", "Neema", "Manju", "Timothy", "Karthik"];
 const statusOptions = ["Closed", "Cancelled", "Deferred"];
 const guestEmails = "jayanthfordhon@gmail.com,jayanthfordhon1@gmail.com";
-const ticketBaseUrl = "https://tickets.mycompany.com/browse/";  // 🔗 Update this if needed
+const ticketBaseUrl = "https://tickets.mycompany.com/browse/"; // 🔗 Customize this
 
-// 📌 Menu
+// 📌 Menu Setup
 function onOpen() {
-  const ui = SpreadsheetApp.getUi();
-  ui.createMenu("🔧 CR Tools")
+  SpreadsheetApp.getUi()
+    .createMenu("🔧 CR Tools")
     .addItem("➕ Add New CR", "showCRForm")
     .addItem("✏️ Update Existing CR", "showCRUpdateForm")
     .addItem("🧪 Test Summary Email", "sendDailyCRSummary")
     .addToUi();
 }
 
-// 🖼️ Forms
+// 🎨 UI Forms
 function showCRForm() {
   const html = HtmlService.createHtmlOutputFromFile("CRForm").setWidth(500).setHeight(600);
   SpreadsheetApp.getUi().showModalDialog(html, "➕ Add New CR");
@@ -24,10 +24,10 @@ function showCRUpdateForm() {
   SpreadsheetApp.getUi().showModalDialog(html, "✏️ Update CR");
 }
 function getDropdownData() {
-  return { teamMembers: teamMembers, statusOptions: statusOptions };
+  return { teamMembers, statusOptions };
 }
 
-// 📋 Add New CR
+// ➕ Add New CR with Locking and Calendar/Email Triggers
 function addCR(formData) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
   const now = new Date();
@@ -48,45 +48,41 @@ function addCR(formData) {
     "", "", "", "" // Actual Start, Actual End, Total Duration, Status
   ];
 
+  // 🔐 Sheet protection: temporarily remove, append, re-lock
   const protection = sheet.getProtections(SpreadsheetApp.ProtectionType.SHEET)[0];
-  const editors = protection ? protection.getEditors() : [];
-
-  if (protection) protection.remove();
-  sheet.appendRow(newRow);
-  if (editors.length) {
-    const newProtection = sheet.protect().setDescription('Sheet Lock');
-    newProtection.addEditors(editors);
-    newProtection.setWarningOnly(false);
+  let editors = [];
+  if (protection) {
+    editors = protection.getEditors().map(e => e.getEmail());
+    protection.remove();
   }
 
-  // 📅 Calendar Event
+  sheet.appendRow(newRow);
+
+  const newProtection = sheet.protect().setDescription('Locked Sheet');
+  newProtection.setWarningOnly(false);
+  newProtection.removeEditors(editors);
+
+  // 📅 Calendar invite: 45 mins before end
   const calendar = CalendarApp.getDefaultCalendar();
   const reminderStart = new Date(endTime.getTime() - 45 * 60 * 1000);
   const reminderEnd = new Date(reminderStart.getTime() + 15 * 60 * 1000);
+  calendar.createEvent(`CR Reminder: ${formData.crIncident}`, reminderStart, reminderEnd, {
+    description: `Reminder to prepare for closing CR ${formData.crIncident}.`,
+    guests: guestEmails,
+    sendInvites: true
+  });
 
-  calendar.createEvent(
-    `CR Reminder: ${formData.crIncident}`,
-    reminderStart,
-    reminderEnd,
-    {
-      description: `Reminder to prepare for closing CR ${formData.crIncident}.`,
-      guests: guestEmails,
-      sendInvites: true
-    }
-  );
-
-  // 🔔 Trigger email reminder for this CR only
+  // ⏰ Email reminder: 30 mins before end
   const lastRow = sheet.getLastRow();
   const trigger = ScriptApp.newTrigger("sendEmailReminderWithContext")
     .timeBased()
     .at(new Date(endTime.getTime() - 30 * 60 * 1000))
     .create();
 
-  const props = PropertiesService.getScriptProperties();
-  props.setProperty(trigger.getUniqueId(), lastRow);
+  PropertiesService.getScriptProperties().setProperty(trigger.getUniqueId(), lastRow);
 }
 
-// 🔔 Email Reminder for Specific CR
+// 📧 One-off reminder email for the specific CR
 function sendEmailReminderWithContext(e) {
   const props = PropertiesService.getScriptProperties();
   const triggerUid = e.triggerUid;
@@ -118,7 +114,7 @@ function sendEmailReminderWithContext(e) {
   props.deleteProperty(triggerUid);
 }
 
-// 📬 Daily Summary (9 AM & 5 PM)
+// 📬 9AM & 5PM Summary of Open CRs
 function sendDailyCRSummary() {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
   SpreadsheetApp.flush();
@@ -129,11 +125,11 @@ function sendDailyCRSummary() {
   let openCRs = [];
 
   for (let i = 1; i < data.length; i++) {
-    const cr = data[i][0];            // CR/Incident
-    const raisedBy = data[i][2];      // Raised By (Column C)
-    const validator = data[i][6];     // Validator (Column G)
-    const endDate = data[i][9];       // End Date & Time (Column J)
-    const status = data[i][13];       // Status (Column N)
+    const cr = data[i][0];        // A - CR Number
+    const raisedBy = data[i][2];  // C - Raised By
+    const validator = data[i][6]; // G - Validator
+    const endDate = data[i][9];   // J - End Date
+    const status = data[i][13];   // N - Status
 
     if (cr && endDate instanceof Date && (!status || status.toString().trim() === "")) {
       openCRs.push({
@@ -163,21 +159,18 @@ function sendDailyCRSummary() {
     return;
   }
 
-  const tableRows = openCRs.map(cr => {
-    const ticketLink = `${ticketBaseUrl}${cr.cr}`;
-    return `
-      <tr>
-        <td style="padding: 8px; border: 1px solid #ccc;">
-          <a href="${ticketLink}" target="_blank">${cr.cr}</a>
-        </td>
-        <td style="padding: 8px; border: 1px solid #ccc;">${cr.raisedBy}</td>
-        <td style="padding: 8px; border: 1px solid #ccc;">${cr.validator}</td>
-        <td style="padding: 8px; border: 1px solid #ccc;">${cr.plannedEnd}</td>
-        <td style="padding: 8px; border: 1px solid #ccc; color: ${cr.isOverdue ? 'red' : 'green'};">
-          ${cr.isOverdue ? '⚠️ Overdue' : '✅ On Time'}
-        </td>
-      </tr>`;
-  }).join('');
+  const tableRows = openCRs.map(cr => `
+    <tr>
+      <td style="padding: 8px; border: 1px solid #ccc;">
+        <a href="${ticketBaseUrl}${cr.cr}" target="_blank">${cr.cr}</a>
+      </td>
+      <td style="padding: 8px; border: 1px solid #ccc;">${cr.raisedBy}</td>
+      <td style="padding: 8px; border: 1px solid #ccc;">${cr.validator}</td>
+      <td style="padding: 8px; border: 1px solid #ccc;">${cr.plannedEnd}</td>
+      <td style="padding: 8px; border: 1px solid #ccc; color: ${cr.isOverdue ? 'red' : 'green'};">
+        ${cr.isOverdue ? '⚠️ Overdue' : '✅ On Time'}
+      </td>
+    </tr>`).join('');
 
   const htmlBody = `
     <p style="font-family: Arial;">Hi Team,</p>
@@ -203,7 +196,7 @@ function sendDailyCRSummary() {
   });
 }
 
-// ✏️ Update CR Actuals
+// ✏️ Update actual start/end & status
 function updateCR(updateData) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
   const row = Number(updateData.row);
